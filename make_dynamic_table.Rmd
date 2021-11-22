@@ -1,0 +1,1146 @@
+---
+title: "Pharmacokinetic-pharmacodynamic models for time-courses of antibiotic effects – An exhaustive review"
+output: 
+  html_document:
+    knit: (function(inputFile, encoding) { 
+          rmarkdown::render(inputFile,
+                    encoding=encoding, 
+                    output_file='index.html')) })
+---
+
+```{r chunk options, echo=F, message=F, warning=F}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+```
+
+# About this database
+
+This is the work of Iris Minichmayr, Vincent Aranzana-Climent and Lena Friberg 
+from the Pharmacometrics research group at Uppsala University. \ 
+
+If you like what you see and use this work, please cite our review paper, the 
+full citation will be added after publication. In the mean time please cite it 
+as : \ 
+
+Minichmayr IK, Aranzana-Climent V, Friberg LE, Pharmacokinetic-pharmacodynamic 
+models for time-courses of antibiotic effects – An exhaustive review, In 
+manuscript, 2021. \ 
+
+The database presented in this page is dynamic in nature, it will be updated 
+regularly by the authors. If you want to be kept up to date please follow the 
+attached github repository https://github.com/Vincent-AC/pmx-models-atb-review \ 
+
+
+Table last updated : 15th November 2021 \ 
+
+# How to read this table
+
+In the default view, you will see a summary table with the same format as Table S1. \
+It is searchable using the search field in the top right corner of the table. \
+The table is paginated and by default 10 articles are shown. \
+If you want detailed information about the drugs, pathogens and/or models included in one 
+article you can click on the green plus sign at the beginning of each row. Here follows 
+information about what is in each detailed table :\
+
+1. Drug characteristics :
+    +  Drug class : Self explanatory
+    +  Drug : self explanatory
+2. Pathogens characteristics :
+    +  Pathogen(s) : Full name of the pathogens included in the model
+    +  Number of strains : How many strains were used to produce the data included in the model
+3. Growth model characteristics :
+    +  Growth model : Broad family of growth model can be one of : 1,2 or 3 metabolic states, growing and resting bacteria, 2 state life-cycle model, other.
+    +  Growth equation : What is the equation characterizing the growth rate
+    +  Delay in growth : Is there any delay in the growth rate equation ?
+    +  Comments : Any additional information
+4. Effect model characteristics : 
+    +  Effect equation : Is the equation linking drug concentrations to effect a linear, linear with power, Emax or sigmoid Emax model ?
+    +  Effect on death or growth : Is the drug effect applied as a reduction of growth or an increase in death rate ?
+    +  Delay in effect : Is there a delay component in the effect equation ?
+    +  Drug : Name of the drug providing the effect
+    +  Pathogen : Full name of the pathogen on which the effect is applied
+    +  Comments : Any additional information
+5. Resistance model characteristics :
+    +  Resistance model : What type of resistance model is included in the paper can be one of : Adaptive resistance, Subpopulations, Other
+    +  Comments : Any additional information
+6. Interaction model characteristics :
+    +  Paradigm : Under which general paradigm can we categorise the interacation model, can be one of : Additivity, Loewe additivity, Bliss independance, Greco URSA model, Other
+    +  Interaction effect : How does the interaction effect is parametrized ?
+    +  Perpetrator : Which drug affect the effect of the other drug ? (concept from Wicha et al.)
+    +  Victim : Which drug's effect is affected by the other drug ? (concept from Wicha et al.)
+    +  Comments : Any additional information
+7. PK data characteristics :
+    +  Patient population : From which patient population were the PK parameters used in the paper derived ?
+    +  Used for ? : Was the PK parameters used for setting up the system (+g dynamic experiments) or for simulations of expected bacterial densities ?
+    +  Comments : Any additional information
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(here)
+library(flextable)
+library(DT)
+library(AMR)
+
+single_drug_data <-
+  read_xlsx(here("tables/single_drug.xlsx"))
+
+combination_drug_data <-
+  read_xlsx(here("tables/combination_drugs.xlsx"))
+
+all_data <- bind_rows(
+  mutate(single_drug_data, combination = F),
+  mutate(combination_drug_data, combination = T)
+)
+
+article_info_table <- select(all_data,
+                             pmid,
+                             first_author,
+                             year,
+                             general_comments) %>%
+  type_convert()
+
+pk_data_table <- select(all_data,
+                        pmid,
+                        `Patient PK`) %>%
+    separate(`Patient PK`,
+           into = paste0("pk_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("pk_"),
+    names_to = "pk_index",
+    values_to = "patient_pk",
+    values_drop_na = T
+  ) %>%
+  select(-pk_index) %>% 
+  separate(patient_pk,
+           into = c("pk_population","pk_usage","pk_comments"),
+                    sep = ", ")
+  
+
+studied_drugs_table <- select(all_data,
+                              pmid,
+                              Drugs,
+                              combination) %>%
+  separate(Drugs,
+           into = paste0("drug_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("drug_"),
+    names_to = "drug_index",
+    values_to = "combination_name",
+    values_drop_na = T
+  ) %>%
+  select(-drug_index) %>%
+  separate(combination_name,
+           into = paste0("drug_", LETTERS[1:23]),
+           sep = ";| \\+ ",
+           remove = F) %>%
+  pivot_longer(
+    cols = starts_with("drug_"),
+    names_to = "drug_index",
+    values_to = "drug_name",
+    values_drop_na = T
+  ) %>%
+  select(-drug_index) %>%
+  mutate(drug_name = tolower(drug_name)) %>% 
+  type_convert()
+
+drug_level_statistics_table <-
+  studied_drugs_table %>% count(drug_name) %>% arrange(-n) %>%
+  mutate(proportion = round(n / length(
+    unique(studied_drugs_table$pmid)
+  ), 3)) 
+
+match_atb_on_name <-  mutate(AMR::antibiotics, 
+                             index_of_our_name_in_drug_level_statistics_table = name %>% tolower() %>% match(
+        table = drug_level_statistics_table$drug_name
+      )
+  ) %>% select(name, group, index_of_our_name_in_drug_level_statistics_table,synonyms) %>% 
+  filter(!is.na(index_of_our_name_in_drug_level_statistics_table)) %>% 
+  mutate(our_drug_name = drug_level_statistics_table$drug_name[index_of_our_name_in_drug_level_statistics_table]) %>% 
+  select(-c(synonyms,index_of_our_name_in_drug_level_statistics_table))
+
+drug_names_after_correction <- sort(unique(studied_drugs_table$drug_name))
+
+match_atb_on_synonym <-
+  mutate(AMR::antibiotics, index_of_our_name_in_drug_level_statistics_table =
+    map_dbl(
+      synonyms,
+      ~ .x %>% unlist() %>% tolower() %>%  match(
+        table = drug_level_statistics_table$drug_name,
+        x = .,
+        nomatch = 0
+      ) %>% .[.!=0] %>% first() %>% first() %>% ifelse(is.integer(.) && length(.) == 0L,0,.)
+    )
+  ) %>% select(name, group, index_of_our_name_in_drug_level_statistics_table,synonyms) %>% 
+  filter(!(index_of_our_name_in_drug_level_statistics_table==0)) %>% 
+  mutate(our_drug_name = drug_level_statistics_table$drug_name[index_of_our_name_in_drug_level_statistics_table]) %>% 
+  select(-c(synonyms,index_of_our_name_in_drug_level_statistics_table))
+
+matched_atb_without_duplicates <- bind_rows(match_atb_on_name,
+                                            match_atb_on_synonym) %>% 
+  filter(!duplicated(.))
+
+unknown_drugs_table <- filter(drug_level_statistics_table,!(drug_name %in% matched_atb_without_duplicates$our_drug_name)) %>% 
+  select(drug_name) %>% 
+  mutate(group = case_when(
+    drug_name == "nisin a" ~ "Other antibacterials" ,
+    drug_name == "relebactam" ~ "Beta-lactams/penicillins",
+    drug_name == "vertilmicin" ~ "Aminoglycosides" ,
+    drug_name == "zidovudine" ~ "Other antibacterials",
+    drug_name == "aditoprim" ~ "Trimethoprims" ,
+    drug_name == "d-0162819 (biotin carboxylase inhibitor)" ~ "Other antibacterials",
+    drug_name == "meropenem/cilastatin" ~ "Carbapenems" ,
+    drug_name == "modithromycin" ~ "Macrolides/lincosamides",
+    drug_name == "nox-d19" ~ "C5a neutralizers" ,
+    drug_name == "pt119" ~ "Other antibacterials",
+    drug_name == "pt447" ~ "Other antibacterials",
+    drug_name == "pt55" ~ "Other antibacterials",
+    drug_name == "rwj-416457" ~ "Oxazolidinones",
+    drug_name == "s-4661" ~ "Carbapenems" ,
+    drug_name == "skts1" ~ "Other antibacterials" ,
+    drug_name == "spectinamide 1445" ~ "Antimycobacterials",
+    drug_name == "spectinamide 1599" ~ "Antimycobacterials",
+    drug_name == "penicillin" ~ "Beta-lactams/penicillins "
+  ) ) %>% 
+  rename(our_drug_name = drug_name)
+
+drug_characteristics_table <-
+  matched_atb_without_duplicates %>%
+  select(-name) %>%
+  bind_rows(unknown_drugs_table)
+  
+
+studied_pathogens_table <- select(all_data,
+                                  pmid,
+                                  Pathogens) %>%
+  separate(Pathogens,
+           into = paste0("pathogen_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("pathogen_"),
+    names_to = "pathogen_index",
+    values_to = "pathogen_name",
+    values_drop_na = T
+  ) %>%
+  select(-pathogen_index) %>%
+  separate(pathogen_name,
+           into = c("pathogen_name", "n_strains"),
+           sep = ",") %>%
+  mutate(n_strains = gsub(" strains", "", n_strains) %>% as.numeric()) %>%
+  type_convert()
+
+experiment_type_table <- select(all_data,
+                                pmid,
+                                `Experiment type`) %>%
+  separate(`Experiment type`,
+           into = paste0("experiment_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("experiment_"),
+    names_to = "experiment_index",
+    values_to = "experiment_type",
+    values_drop_na = T
+  ) %>%
+  select(-experiment_index) %>%
+  type_convert()
+
+growth_model_table <- select(all_data,
+                             pmid,
+                             `Growth model detailed`) %>%
+  separate(`Growth model detailed`,
+           into = paste0("growth_model_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("growth_model_"),
+    names_to = "growth_model_index",
+    values_to = "growth_model_name",
+    values_drop_na = T
+  ) %>%
+  select(-growth_model_index) %>%
+  separate(
+    col = growth_model_name,
+    into = c("growth_model", "growth_model_equation", "growth_model_delay", "growth_model_comments"),
+    sep = ", "
+  ) %>%
+  type_convert()
+
+effect_model_table <- select(all_data,
+                           pmid,
+                           `Drug effect model`) %>%
+  full_join(select(studied_pathogens_table, -n_strains), by = "pmid") %>%
+  full_join(select(studied_drugs_table,-combination_name,-combination), by = "pmid") %>%
+  separate(`Drug effect model`,
+           into = paste0("effect_model_", LETTERS[1:23]),
+           sep = ";") %>%
+  pivot_longer(
+    cols = starts_with("effect_model_"),
+    names_to = "effect_model_index",
+    values_to = "effect_model_name",
+    values_drop_na = T
+  ) %>%
+  select(-effect_model_index) %>%
+  separate(
+    col = effect_model_name,
+    into = c(
+      "effect_equation",
+      "effect_death_growth",
+      "effect_delay",
+      "effect_drug",
+      "effect_pathogen",
+      "effect_comments"
+    ),
+    sep = ", "
+  ) %>%
+  filter(effect_drug == "NA" | tolower(effect_drug) == tolower(drug_name)) %>%
+  type_convert() %>%
+  mutate(effect_pathogen = as.character(effect_pathogen)) %>%
+  mutate(
+    effect_drug = case_when(is.na(effect_drug) ~ drug_name,
+                            TRUE ~ effect_drug),
+    effect_pathogen = case_when(is.na(effect_pathogen) ~ pathogen_name,
+                                TRUE ~ effect_pathogen)
+  ) %>%
+  select(-pathogen_name,-drug_name) %>%
+  distinct()
+
+resistance_model_table <- select(all_data,
+                                 pmid,
+                                 `Resistance model`) %>%
+  separate(`Resistance model`,
+           into=paste0("resistance_model_",LETTERS[1:23]),
+           sep=";") %>%
+  pivot_longer(cols=starts_with("resistance_model_"),
+               names_to = "resistance_model_index",
+               values_to = "resistance_model",
+               values_drop_na = T) %>%
+  select(-resistance_model_index) %>%
+  separate(resistance_model,
+           into = c("resistance_model","resistance_model_comments"),
+           sep = ", ") %>%
+  type_convert()
+
+interaction_model_table <- select(all_data,
+                                  pmid,
+                                  `Interaction model`) %>%
+  separate(`Interaction model`,
+           into=paste0("interaction_model_",LETTERS[1:23]),
+           sep=";") %>%
+  pivot_longer(cols=starts_with("interaction_model_"),
+               names_to = "interaction_model_index",
+               values_to = "interaction_model_name",
+               values_drop_na = T) %>%
+  select(-interaction_model_index) %>%
+  separate(interaction_model_name,
+           into=c("interaction_paradigm","interaction_effect",
+                  "interaction_perpetrator","interaction_victim","interaction_comments"),
+           sep=", ") %>%
+  type_convert()
+
+
+# Prepare summary table ---------------------------------------------------
+
+pk_data_summary <- pk_data_table %>% 
+  select(-pk_comments,-pk_usage) %>% 
+  distinct() %>%
+  mutate(pk_population = case_when(pk_population == "no pk population" ~ NA_character_,
+                                   TRUE ~ pk_population)) %>%
+  left_join(select(pk_data_table,pmid,pk_usage)) %>% 
+  distinct() %>% 
+  group_by(pmid,pk_population) %>% 
+  mutate(multiple_rows_pmid_pk_pop=pk_population == first(pk_population),
+         n_lines = sum(multiple_rows_pmid_pk_pop),
+         pk_usage = case_when(n_lines==2 ~ "experimental setup and simulations",
+                              TRUE ~ pk_usage)) %>% 
+  select(-multiple_rows_pmid_pk_pop,-n_lines) %>% 
+  ungroup() %>% 
+  distinct() %>% 
+  mutate(pk_population = str_to_sentence(pk_population),
+         pk_usage = str_to_sentence(pk_usage)) %>% 
+  unite("pk_variable",pk_population,pk_usage,sep=" - ",na.rm=T) %>% 
+  group_by(pmid) %>% 
+  mutate(n_row = paste0("pk_",row_number())) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = pk_variable) %>%
+  unite(`Human PK`,starts_with("pk_"),sep=", ",na.rm = T) %>% 
+  mutate(`Human PK`=case_when(`Human PK` == "" ~ "-",
+                              TRUE ~ `Human PK`))
+
+
+studied_drugs_summary <- studied_drugs_table %>%
+  select(-combination,-drug_name) %>%
+  distinct() %>%
+  group_by(pmid) %>%
+  mutate(n_row = paste0("drug_",row_number()),
+         combination_name = str_to_title(combination_name)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = combination_name) %>%
+  unite(`Drug(s)`,starts_with("drug_"),sep=", ", na.rm = T) 
+
+abbreviate_genus <- function(genus_species) {
+  genus_species %>% gsub("^(\\w).*[[:space:]]", "\\1. ",.)
+}
+
+studied_pathogens_summary <- studied_pathogens_table %>%
+  mutate(pathogen_name = abbreviate_genus(pathogen_name)) %>% 
+  select(-n_strains) %>%
+  group_by(pmid) %>%
+  mutate(n_row = paste0("pathogen_",row_number())) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = pathogen_name) %>%
+  unite(`Pathogen(s)`,starts_with("pathogen_"),sep=", ", na.rm = T)
+
+experiment_type_summary <- experiment_type_table %>%
+  mutate(experiment_type = case_when(
+    experiment_type == "Static kill-curves" ~ "S",
+    experiment_type == "Dynamic kill-curves" ~ "D",
+    experiment_type == "Other experiment type" ~ "O",
+    experiment_type == "Hollow Fibre kill-curves" ~ "HF",
+    experiment_type == "Stepwise dilution of growth medium" ~ "StepDil",
+    experiment_type == "Animal experiments" ~ "A"
+  )) %>% 
+  group_by(pmid) %>%
+  mutate(n_row = paste0("experiment_",row_number())) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = experiment_type) %>%
+  unite(`Experiment type(s)`,starts_with("experiment_"),sep=", ", na.rm = T)
+
+growth_model_summary <- growth_model_table %>%
+  unite("growth_model",growth_model,growth_model_equation, growth_model_delay,growth_model_comments,sep=", ",na.rm=T) %>% 
+  mutate(`Growth model` = str_to_sentence(growth_model)) %>%
+  select(-growth_model)
+
+effect_model_summary <- effect_model_table %>%
+  select(pmid,effect_equation) %>%
+  distinct() %>%
+  group_by(pmid) %>%
+  mutate(n_row = paste0("effect_",row_number())) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = effect_equation) %>%
+  unite(`Effect equation(s)`,starts_with("effect_"),sep=", ", na.rm = T)
+
+resistance_model_summary <- resistance_model_table %>%
+  select(-resistance_model_comments) %>%
+  distinct() %>%
+  group_by(pmid) %>%
+  mutate(n_row = paste0("resistance_",row_number()),
+         resistance_model = str_to_sentence(resistance_model)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = resistance_model) %>%
+  unite(`Resistance model(s)`,starts_with("resistance_"),sep=", ", na.rm = T)
+
+interaction_model_summary <- interaction_model_table %>%
+  select(pmid, interaction_effect) %>%
+  distinct() %>%
+  group_by(pmid) %>%
+  mutate(
+    n_row = paste0("interaction_", row_number()),
+    interaction_effect = str_to_sentence(interaction_effect)
+  ) %>%
+  ungroup() %>%
+  pivot_wider(names_from = n_row,
+              values_from = interaction_effect) %>%
+  unite(
+    `Interaction model(s)`,
+    starts_with("interaction_"),
+    sep = ", ",
+    na.rm = T
+  ) %>%
+  mutate(
+    `Interaction model(s)` = gsub("ec50", "EC50", `Interaction model(s)`) %>%
+      gsub("emax", "Emax", .)
+  )
+
+
+summary_table <- article_info_table %>%
+  mutate(
+    Article = paste0(first_author, " et al., ", year, " (", pmid, ")"),
+    `Comments` = str_to_sentence(general_comments)
+  ) %>%
+  select(-c(first_author, year, general_comments)) %>%
+  left_join(pk_data_summary) %>% 
+  left_join(studied_drugs_summary) %>%
+  left_join(studied_pathogens_summary) %>%
+  left_join(experiment_type_summary) %>%
+  left_join(growth_model_summary) %>%
+  left_join(effect_model_summary) %>%
+  left_join(resistance_model_summary) %>%
+  left_join(interaction_model_summary) %>%
+  select(
+    -Comments
+  ) %>%
+  select(    pmid,
+             Article,
+             `Drug(s)`,
+             `Pathogen(s)`,
+             `Experiment type(s)`,
+             `Growth model`,
+             `Effect equation(s)`,
+             `Resistance model(s)`,
+             `Interaction model(s)`,
+             `Human PK`) %>%
+  mutate(`Interaction model(s)` = case_when(
+    is.na(`Interaction model(s)`) ~ "-" ,
+    TRUE ~ `Interaction model(s)`
+  ))
+
+library(data.table)
+library(jsonlite)
+summary_table_data_table <-
+  as.data.table(summary_table %>% mutate(`Pathogen(s)` = gsub("\\.[[:space:]]", ".", `Pathogen(s)`)))
+
+
+
+l.summary_table_data_table_main <-
+  split(summary_table_data_table %>% mutate(Link = paste0('<a  target=_blank href=https://pubmed.ncbi.nlm.nih.gov/', pmid, '/>Link</a>' ) ) %>% relocate(Link, .after = Article), summary_table_data_table$pmid)
+
+studied_drugs_without_duplicate <-
+  studied_drugs_table %>% select(-combination, -combination_name) %>% distinct()
+l.studied_drugs <-
+  split(
+    left_join(
+      studied_drugs_without_duplicate,
+      drug_characteristics_table,
+      by = c("drug_name" = "our_drug_name")
+    ) %>% select(-pmid) %>% mutate(Drug = str_to_sentence(drug_name)) %>% rename(`Drug class` = group) %>% select(-drug_name, `Drug`, `Drug class`),
+    studied_drugs_without_duplicate$pmid
+  )
+l.studied_pathogens <-
+  split(
+    studied_pathogens_table %>% select(-pmid) %>% rename(`Pathogen(s)` = pathogen_name,
+                                                         `Number of strains` = n_strains),
+    studied_pathogens_table$pmid
+  )
+l.growth_model <-
+  split(
+    growth_model_table %>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename(
+      `Growth model` = growth_model,
+      `Growth equation` = growth_model_equation,
+      `Delay in growth` = growth_model_delay,
+      `Comments` = growth_model_comments
+    ),
+    growth_model_table$pmid
+  )
+
+#Uncomment is effect is missing at some point
+# missing_pmid_effect_table <- tibble(pmid = filter(summary_table,!(pmid %in% effect_model_table$pmid)) 
+#                                     %>% pull(pmid),
+#                                     effect_equation = NA,
+#                                     effect_death_growth = NA,
+#                                     effect_delay = NA,
+#                                     effect_drug = NA,
+#                                     effect_pathogen = NA,
+#                                     effect_comments = NA)
+
+effect_model_for_dynamic_table <- effect_model_table
+    # %>%bind_rows(missing_pmid_effect_table)
+
+l.effect_model <-
+  split(
+    effect_model_for_dynamic_table %>% select(-pmid) %>% mutate(
+      effect_death_growth = str_to_sentence(effect_death_growth),
+      effect_drug = str_to_sentence(effect_drug)
+    ) %>% 
+      rename("Effect equation" = effect_equation,
+             "Effect on death or growth" = effect_death_growth,
+             "Delay in effect" = effect_delay,
+             "Drug" = effect_drug,
+             "Pathogen" = effect_pathogen,
+             "Comments" = effect_comments),
+    effect_model_for_dynamic_table$pmid
+  )
+l.resistance_model <-
+  split(resistance_model_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename(`Resistance model` = resistance_model,
+                                                           `Comments` = resistance_model_comments), resistance_model_table$pmid)
+
+missing_pmid_interaction_table <- tibble(pmid = filter(summary_table,!(pmid %in% interaction_model_table$pmid)) 
+                                    %>% pull(pmid),
+                                    interaction_paradigm = NA,
+                                    interaction_effect = NA,
+                                    interaction_perpetrator = NA,
+                                    interaction_victim = NA,
+                                    interaction_comments = NA)
+
+interaction_model_for_dynamic_table <- interaction_model_table %>% 
+   bind_rows(missing_pmid_interaction_table)
+
+l.interaction_model <-
+  split(interaction_model_for_dynamic_table%>% select(-pmid) %>%
+          mutate_all(str_to_sentence) %>% 
+          rename("Paradigm" = interaction_paradigm,
+                 "Interaction effect" = interaction_effect,
+                 "Perpetrator" = interaction_perpetrator,
+                 "Victim" = interaction_victim,
+                 "Comments" = interaction_comments), interaction_model_for_dynamic_table$pmid)
+l.pk_data <-
+  split(pk_data_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename("Patient population" = pk_population,"Used for ?" = pk_usage, "Comments" = pk_comments), pk_data_table$pmid)
+
+l.cars <-
+  pmap(
+    list(
+      l.summary_table_data_table_main,
+      l.studied_drugs,
+      l.studied_pathogens,
+      l.growth_model,
+      l.effect_model,
+      l.resistance_model,
+      l.interaction_model,
+      l.pk_data
+    ),
+    ~ list(
+      Article = ..1$Article,
+      Link = ..1$Link,
+      `Drug` = ..1$`Drug(s)`,
+      `Pathogen` = ..1$`Pathogen(s)`,
+      `Experiment type` = ..1$`Experiment type(s)`,
+      `Growth model` = ..1$`Growth model`,
+      `Effect equation` = ..1$`Effect equation(s)`,
+      `Resistance model` = ..1$`Resistance model(s)`,
+      `Interaction model` = ..1$`Interaction model(s)`,
+      `Patient PK` = ..1$`Human PK`,
+      drugs_subtable = toJSON(..2,na="string"),
+      pathogens_subtable = toJSON(..3,na="string"),
+      growth_subtable = toJSON(..4,na="string"),
+      effect_subtable = toJSON(..5,na="string"),
+      resistance_subtable = toJSON(..6,na="string"),
+      interaction_subtable = toJSON(..7,na="string"),
+      pk_subtable = toJSON(..8,na="string")
+    )
+  )
+df <-
+  data.frame(do.call('rbind', l.cars),
+             check.names = F,
+             stringsAsFactors = FALSE)
+
+df <- cbind(' ' = '&oplus;', df)
+datatable(
+  df,
+  escape = -2,
+  options = list(
+    dom = 'ftpi',
+    initComplete = JS('
+    function(settings, json) {
+        var $table = $(this.api().table().node());
+        $table.find("th:contains(\'Experiment\')").append(\'<sup>1</sup>\');
+    }
+'),
+    search = list(regex = TRUE),
+    columnDefs = list(
+      list(visible = FALSE, targets = c(0, 12, 13,14,15,16,17,18),searchable=T),
+      list(
+        orderable = FALSE,
+        className = 'details-control',
+        targets = 1
+      )
+    )
+  ),
+  
+  callback = JS(
+    "
+                    var format = function(d) {
+                      var table = document.createElement('table');
+                      var myCaption = table.createCaption ();
+                      myCaption.innerHTML = 'Drug characteristics';
+                      var tableBody = document.createElement('tbody');
+                      var embeddedTableRows = d[12] ;  // JSON automatically converted to array
+                      var subtable = [];
+                      var arr = [];
+                      $.each(embeddedTableRows, function (index, item) {
+                        arr = [];
+                        $.each(item, function(k, v) {
+                          arr.push(v);
+                        })
+                        subtable.push(arr);
+                      });
+
+                      // Add table headers
+                      headers = [];
+                        $.each(embeddedTableRows[0], function(k, v) {
+                        headers.push(k);
+                      })
+                      for(var i=0; i<headers.length; i++){
+                        table.appendChild(document.createElement('th')).
+                        appendChild(document.createTextNode(headers[i]));
+                      }
+
+                      // Add table body
+                      for (var i = 0; i < subtable.length; i++) {
+                        var row = document.createElement('tr');
+                        for (var j = 0; j < subtable[i].length; j++) {
+                          var cell = document.createElement('td');
+                          cell.appendChild(document.createTextNode(subtable[i][j]));
+                          cell.style.backgroundColor = 'lightblue';
+                          row.appendChild(cell);
+                        }
+                        tableBody.appendChild(row);
+                      }
+                      table.appendChild(tableBody);
+                      var tableTwo = document.createElement('table');
+                      var myCaptionTwo = tableTwo.createCaption ();
+                      myCaptionTwo.innerHTML = 'Pathogen characteristics';
+                      var tableBodyTwo = document.createElement('tbody');
+                      var embeddedTableRowsTwo = d[13] ;  // JSON automatically converted to array
+                      var subtableTwo = [];
+                      var arrTwo = [];
+                      $.each(embeddedTableRowsTwo, function (index, item) {
+                        arrTwo = [];
+                        $.each(item, function(k, v) {
+                          arrTwo.push(v);
+                        })
+                        subtableTwo.push(arrTwo);
+                      });
+
+                      // Add tableTwo headersTwo
+                      headersTwo = [];
+                        $.each(embeddedTableRowsTwo[0], function(k, v) {
+                        headersTwo.push(k);
+                      })
+                      for(var i=0; i<headersTwo.length; i++){
+                        tableTwo.appendChild(document.createElement('th')).
+                        appendChild(document.createTextNode(headersTwo[i]));
+                      }
+
+                      // Add tableTwo body
+                      for (var i = 0; i < subtableTwo.length; i++) {
+                        var rowTwo = document.createElement('tr');
+                        for (var j = 0; j < subtableTwo[i].length; j++) {
+                          var cellTwo = document.createElement('td');
+                          cellTwo.appendChild(document.createTextNode(subtableTwo[i][j]));
+                          cellTwo.style.backgroundColor = 'lightblue';
+                          rowTwo.appendChild(cellTwo);
+                        }
+                        tableBodyTwo.appendChild(rowTwo);
+                      }
+                      tableTwo.appendChild(tableBodyTwo);
+                      table.appendChild(tableTwo);
+                      var tableThree = document.createElement('table');
+                      var tableBodyThree = document.createElement('tbody');
+                      var myCaptionThree = tableThree.createCaption ();
+                      myCaptionThree.innerHTML = 'Growth model characteristics';
+var embeddedTableRowsThree = d[14] ;  // JSON automatically converted to array
+var subtableThree = [];
+var arrThree = [];
+$.each(embeddedTableRowsThree, function (index, item) {
+  arrThree = [];
+  $.each(item, function(k, v) {
+    arrThree.push(v);
+  })
+  subtableThree.push(arrThree);
+});
+
+// Add tableThree headersThree
+headersThree = [];
+$.each(embeddedTableRowsThree[0], function(k, v) {
+  headersThree.push(k);
+})
+for(var i=0; i<headersThree.length; i++){
+  tableThree.appendChild(document.createElement('th')).
+  appendChild(document.createTextNode(headersThree[i]));
+}
+
+// Add tableThree body
+for (var i = 0; i < subtableThree.length; i++) {
+  var rowThree = document.createElement('tr');
+  for (var j = 0; j < subtableThree[i].length; j++) {
+    var cellThree = document.createElement('td');
+    cellThree.appendChild(document.createTextNode(subtableThree[i][j]));
+    cellThree.style.backgroundColor = 'lightblue';
+    rowThree.appendChild(cellThree);
+  }
+  tableBodyThree.appendChild(rowThree);
+}
+tableThree.appendChild(tableBodyThree);
+table.appendChild(tableThree);
+var tableFour = document.createElement('table');
+                      var myCaptionFour = tableFour.createCaption ();
+                      myCaptionFour.innerHTML = 'Effect model characteristics';
+var tableBodyFour = document.createElement('tbody');
+var embeddedTableRowsFour = d[15] ;  // JSON automatically converted to array
+var subtableFour = [];
+var arrFour = [];
+$.each(embeddedTableRowsFour, function (index, item) {
+  arrFour = [];
+  $.each(item, function(k, v) {
+    arrFour.push(v);
+  })
+  subtableFour.push(arrFour);
+});
+
+// Add tableFour headersFour
+headersFour = [];
+$.each(embeddedTableRowsFour[0], function(k, v) {
+  headersFour.push(k);
+})
+for(var i=0; i<headersFour.length; i++){
+  tableFour.appendChild(document.createElement('th')).
+  appendChild(document.createTextNode(headersFour[i]));
+}
+
+// Add tableFour body
+for (var i = 0; i < subtableFour.length; i++) {
+  var rowFour = document.createElement('tr');
+  for (var j = 0; j < subtableFour[i].length; j++) {
+    var cellFour = document.createElement('td');
+    cellFour.appendChild(document.createTextNode(subtableFour[i][j]));
+    cellFour.style.backgroundColor = 'lightblue';
+    rowFour.appendChild(cellFour);
+  }
+  tableBodyFour.appendChild(rowFour);
+}
+tableFour.appendChild(tableBodyFour);
+table.appendChild(tableFour);
+var tableFive = document.createElement('table');
+                      var myCaptionFive = tableFive.createCaption ();
+                      myCaptionFive.innerHTML = 'Resistance model characteristics';
+var tableBodyFive = document.createElement('tbody');
+var embeddedTableRowsFive = d[16] ;  // JSON automatically converted to array
+var subtableFive = [];
+var arrFive = [];
+$.each(embeddedTableRowsFive, function (index, item) {
+  arrFive = [];
+  $.each(item, function(k, v) {
+    arrFive.push(v);
+  })
+  subtableFive.push(arrFive);
+});
+
+// Add tableFive headersFive
+headersFive = [];
+$.each(embeddedTableRowsFive[0], function(k, v) {
+  headersFive.push(k);
+})
+for(var i=0; i<headersFive.length; i++){
+  tableFive.appendChild(document.createElement('th')).
+  appendChild(document.createTextNode(headersFive[i]));
+}
+
+// Add tableFive body
+for (var i = 0; i < subtableFive.length; i++) {
+  var rowFive = document.createElement('tr');
+  for (var j = 0; j < subtableFive[i].length; j++) {
+    var cellFive = document.createElement('td');
+    cellFive.appendChild(document.createTextNode(subtableFive[i][j]));
+    cellFive.style.backgroundColor = 'lightblue';
+    rowFive.appendChild(cellFive);
+  }
+  tableBodyFive.appendChild(rowFive);
+}
+tableFive.appendChild(tableBodyFive);
+table.appendChild(tableFive);
+var tableSix = document.createElement('table');
+                      var myCaptionSix = tableSix.createCaption ();
+                      myCaptionSix.innerHTML = 'Interaction model characteristics';
+var tableBodySix = document.createElement('tbody');
+var embeddedTableRowsSix = d[17] ;  // JSON automatically converted to array
+var subtableSix = [];
+var arrSix = [];
+$.each(embeddedTableRowsSix, function (index, item) {
+  arrSix = [];
+  $.each(item, function(k, v) {
+    arrSix.push(v);
+  })
+  subtableSix.push(arrSix);
+});
+
+// Add tableSix headersSix
+headersSix = [];
+$.each(embeddedTableRowsSix[0], function(k, v) {
+  headersSix.push(k);
+})
+for(var i=0; i<headersSix.length; i++){
+  tableSix.appendChild(document.createElement('th')).
+  appendChild(document.createTextNode(headersSix[i]));
+}
+
+// Add tableSix body
+for (var i = 0; i < subtableSix.length; i++) {
+  var rowSix = document.createElement('tr');
+  for (var j = 0; j < subtableSix[i].length; j++) {
+    var cellSix = document.createElement('td');
+    cellSix.appendChild(document.createTextNode(subtableSix[i][j]));
+    cellSix.style.backgroundColor = 'lightblue';
+    rowSix.appendChild(cellSix);
+  }
+  tableBodySix.appendChild(rowSix);
+}
+tableSix.appendChild(tableBodySix);
+table.appendChild(tableSix);
+var tableSeven = document.createElement('table');
+                      var myCaptionSeven = tableSeven.createCaption ();
+                      myCaptionSeven.innerHTML = 'PK data characteristics';
+var tableBodySeven = document.createElement('tbody');
+var embeddedTableRowsSeven = d[18] ;  // JSON automatically converted to array
+var subtableSeven = [];
+var arrSeven = [];
+$.each(embeddedTableRowsSeven, function (index, item) {
+  arrSeven = [];
+  $.each(item, function(k, v) {
+    arrSeven.push(v);
+  })
+  subtableSeven.push(arrSeven);
+});
+
+// Add tableSeven headersSeven
+headersSeven = [];
+$.each(embeddedTableRowsSeven[0], function(k, v) {
+  headersSeven.push(k);
+})
+for(var i=0; i<headersSeven.length; i++){
+  tableSeven.appendChild(document.createElement('th')).
+  appendChild(document.createTextNode(headersSeven[i]));
+}
+
+// Add tableSeven body
+for (var i = 0; i < subtableSeven.length; i++) {
+  var rowSeven = document.createElement('tr');
+  for (var j = 0; j < subtableSeven[i].length; j++) {
+    var cellSeven = document.createElement('td');
+    cellSeven.appendChild(document.createTextNode(subtableSeven[i][j]));
+    cellSeven.style.backgroundColor = 'lightblue';
+    rowSeven.appendChild(cellSeven);
+  }
+  tableBodySeven.appendChild(rowSeven);
+}
+tableSeven.appendChild(tableBodySeven);
+table.appendChild(tableSeven);
+                      return(table);
+                    };
+
+                    // Event handler - expand inner table
+                    table.on('click', 'td.details-control', function() {
+                      var td = $(this), row = table.row(td.closest('tr'));
+                      if (row.child.isShown()) {
+                        row.child.hide();
+                        td.html('&oplus;').css('color', 'green');
+                      } else {
+                        row.child(format(row.data())).show();
+                        td.html('&CircleMinus;').css('color', 'red');
+                      }
+
+                    });"
+  ),
+  selection = 'none',
+caption = htmltools::tags$caption(
+        style="caption-side: bottom; text-align: left; margin: 8px 0;",
+        htmltools::tags$sup("1"),
+        "Experiment types : S = Static time-kill, D = Dynamic time-kill, StepDil = Stepwise dilution time-kill, HF = Hollow fibre time-kill, A = Animal time-kill, O = Other"
+    )
+) %>%
+  formatStyle(
+    1,
+    color = 'green',
+    fontWeight = 'bold',
+    fontSize = '150%',
+    cursor = 'pointer'
+  )
+
+
+```
+
+# Graphs
+
+```{r Articles by year}
+
+articles_year_graph_data <- left_join(article_info_table,studied_drugs_table) %>% 
+  select(pmid,year,combination) %>%
+  mutate(year_group=cut(year,breaks=c(1963,seq(1991,2021,5)),include.lowest=T,
+                        labels=paste0(c(1963,seq(1991,2016,5)),"-",c(seq(1990,2015,5),2021)))) %>% 
+  distinct()
+
+articles_year_graph_data_summary <- articles_year_graph_data %>% 
+  group_by(year_group,combination) %>% 
+  summarise(n_papers_per_year_group_per_comb_status = sum(n())) %>% 
+  ungroup() %>% 
+  group_by(year_group) %>% 
+  mutate(y_label = max(n_papers_per_year_group_per_comb_status),
+         n_papers_per_year_group = sum(n_papers_per_year_group_per_comb_status)) %>% 
+  ungroup()
+
+
+ggplot(articles_year_graph_data,
+       aes(x = year_group, fill = combination)) +
+  geom_bar(position = position_dodge2(width = 0.9, preserve = "single")) +
+    geom_text(data = articles_year_graph_data_summary,
+    aes(
+        x = year_group,y=n_papers_per_year_group_per_comb_status, label = n_papers_per_year_group_per_comb_status),
+    position = position_dodge2(width = 0.9,preserve = "single"),
+    vjust = -0.25
+  ) +
+  geom_text(data = articles_year_graph_data_summary,
+    aes(
+        x = year_group,y=30, label = n_papers_per_year_group,fill=NULL),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25
+  ) +
+  theme_bw()+
+  scale_y_continuous(name = "Number of papers",
+                     breaks = seq(0,30,5),
+                     limits = c(0,30),
+                     labels = c(seq(0,25,5),"Total papers"))+
+  scale_x_discrete(name = "Year of publication")+
+  scale_fill_discrete(name = "",
+                    labels = c("Single drugs","Combinations"))
+
+ggsave("figures/figure_1.png",
+       width=20,
+       height=15,
+       units="cm")
+
+```
+
+```{r drug family statistics}
+n_papers <- length(unique(all_data$pmid))
+
+combination_drug_family_level_statistics_table <-
+  studied_drugs_table %>%
+  left_join(drug_characteristics_table,
+            by = c("drug_name" = "our_drug_name")) %>%
+  rename(drug_family = group) %>%
+  mutate(drug_family = case_when(
+    grepl("Cephalosporins", drug_family) ~ "Cephalosporins",
+    TRUE ~ drug_family
+  )) %>%
+  group_by(drug_family, combination) %>%
+  summarise(n_drug_family = n_distinct(pmid)) %>%
+  arrange(-n_drug_family) %>%
+  mutate(proportion_of_papers = n_drug_family / n_papers) %>%
+  ungroup() %>%
+  mutate(drug_family = fct_reorder(drug_family, n_drug_family, .desc =
+                                     T)) %>% 
+  group_by(drug_family) %>% 
+  mutate(n_papers_per_drug_family = sum(n_drug_family)) %>% 
+  ungroup()
+
+ggplot(combination_drug_family_level_statistics_table,
+       aes(x = drug_family, y=n_drug_family, fill = combination)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) +
+  geom_text(aes(label = n_drug_family),
+    position = position_dodge2(width = 0.9,preserve = "single"),
+    vjust = -0.25
+  ) +
+    geom_text(
+    aes(y=30, label = n_papers_per_drug_family,fill=NULL),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25
+  ) +
+  theme_bw()+
+  scale_y_continuous(name = "Number of papers",
+                     breaks = seq(0,30,5),
+                     limits = c(0,30),
+                     labels = c(seq(0,25,5),"Total papers"))+
+  scale_x_discrete(name = "Drug family")+
+  scale_fill_discrete(name = "",
+                    labels = c("Single drugs","Combinations"))+
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+
+ggsave("figures/figure_drug_family.png",
+       width=20,
+       height=15,
+       units="cm")
+
+```
+
+```{r experimental settings statistics}
+experiment_level_statistics_table <-
+  experiment_type_table %>%
+  left_join(select(all_data, combination, pmid)) %>%
+  group_by(combination) %>%
+  count(experiment_type) %>% 
+  arrange(-n) %>% 
+  group_by(experiment_type) %>% 
+  mutate(n_total_per_exp_type = sum(n)) %>% 
+  ungroup() %>% 
+  mutate(experiment_type = fct_reorder(experiment_type,n,.desc=T))
+
+ggplot(experiment_level_statistics_table,
+       aes(x = experiment_type, y=n, fill = combination)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) +
+  geom_text(aes(label = n),
+    position = position_dodge2(width = 0.9,preserve = "single"),
+    vjust = -0.25
+  ) +
+    geom_text(
+    aes(y=66, label = n_total_per_exp_type,fill=NULL),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25
+  ) +
+  theme_bw()+
+  scale_y_continuous(name = "Number of papers",
+                     breaks = c(seq(0,60,12),66),
+                     limits = c(0,66),
+                     labels = c(seq(0,60,12),"Total papers"))+
+  scale_x_discrete(name = "Experiment type")+
+  scale_fill_discrete(name = "",
+                    labels = c("Single drugs","Combinations"))+
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+
+ggsave("figures/figure_experiment_type.png",
+       width=20,
+       height=15,
+       units="cm")
+
+
+```
+
+```{r interaction model statistics}
+interaction_paradigm_statistics_table <-
+  interaction_model_table %>%
+  count(interaction_paradigm ) %>% 
+  arrange(-n) %>% 
+  mutate(interaction_paradigm  = fct_reorder(interaction_paradigm ,n,.desc=T))
+
+ggplot(interaction_paradigm_statistics_table,
+       aes(x = interaction_paradigm, y=n)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single"),fill="#00BFC4") +
+  geom_text(aes(label = n),
+    position = position_dodge2(width = 0.9,preserve = "single"),
+    vjust = -0.25
+  ) +
+  theme_bw()+
+  scale_y_continuous(name = "Number of papers",
+                     breaks = seq(0,40,5),
+                     limits = c(0,40))+
+  scale_x_discrete(name = "Interaction paradigm")+
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+
+ggsave("figures/figure_interaction_paradigm.png",
+       width=20,
+       height=15,
+       units="cm")
+
+
+interaction_effect_statistics_table <-
+  interaction_model_table %>%
+  count(interaction_effect ) %>% 
+  arrange(-n) %>% 
+  mutate(interaction_effect  = fct_reorder(interaction_effect ,n,.desc=T))
+
+ggplot(interaction_effect_statistics_table,
+       aes(x = interaction_effect, y=n)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single"),fill="#00BFC4") +
+  geom_text(aes(label = n),
+    position = position_dodge2(width = 0.9,preserve = "single"),
+    vjust = -0.25
+  ) +
+  theme_bw()+
+  scale_y_continuous(name = "Number of papers",
+                     breaks = seq(0,25,5),
+                     limits = c(0,25))+
+  scale_x_discrete(name = "Interaction effect")+
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+
+ggsave("figures/figure_interaction_effect.png",
+       width=20,
+       height=15,
+       units="cm")
+
+```
+
+
