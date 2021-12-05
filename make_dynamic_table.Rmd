@@ -17,9 +17,7 @@ knitr::opts_chunk$set(echo = F, message = F, warning = F)
 This is the work of Iris Minichmayr, Vincent Aranzana-Climent and Lena Friberg 
 from the Pharmacometrics research group at Uppsala University. \ 
 
-If you like what you see and use this work, please cite our review paper, the 
-full citation will be added after publication. In the mean time please cite it 
-as : \ 
+If you would like to see detailed information about the drugs, pathogens and/or models included in one article, you can click on the green “plus” sign on the left of each row. In the following, the contents of each detailed table are outlined: \ 
 
 Minichmayr IK, Aranzana-Climent V, Friberg LE, Pharmacokinetic-pharmacodynamic 
 models for time-courses of antibiotic effects – An exhaustive review, In 
@@ -41,37 +39,37 @@ If you want detailed information about the drugs, pathogens and/or models includ
 article you can click on the green plus sign at the beginning of each row. Here follows 
 information about what is in each detailed table :\
 
-1. Drug characteristics :
-    +  Drug class : Self explanatory
-    +  Drug : self explanatory
-2. Pathogens characteristics :
-    +  Pathogen(s) : Full name of the pathogens included in the model
-    +  Number of strains : How many strains were used to produce the data included in the model
-3. Growth model characteristics :
-    +  Growth model : Broad family of growth model can be one of : 1,2 or 3 metabolic states, growing and resting bacteria, 2 state life-cycle model, other.
-    +  Growth equation : What is the equation characterizing the growth rate
-    +  Delay in growth : Is there any delay in the growth rate equation ?
-    +  Comments : Any additional information
-4. Effect model characteristics : 
-    +  Effect equation : Is the equation linking drug concentrations to effect a linear, linear with power, Emax or sigmoid Emax model ?
-    +  Effect on death or growth : Is the drug effect applied as a reduction of growth or an increase in death rate ?
-    +  Delay in effect : Is there a delay component in the effect equation ?
-    +  Drug : Name of the drug providing the effect
-    +  Pathogen : Full name of the pathogen on which the effect is applied
-    +  Comments : Any additional information
-5. Resistance model characteristics :
-    +  Resistance model : What type of resistance model is included in the paper can be one of : Adaptive resistance, Subpopulations, Other
-    +  Comments : Any additional information
-6. Interaction model characteristics :
-    +  Paradigm : Under which general paradigm can we categorise the interacation model, can be one of : Additivity, Loewe additivity, Bliss independance, Greco URSA model, Other
-    +  Interaction effect : How does the interaction effect is parametrized ?
-    +  Perpetrator : Which drug affect the effect of the other drug ? (concept from Wicha et al.)
-    +  Victim : Which drug's effect is affected by the other drug ? (concept from Wicha et al.)
-    +  Comments : Any additional information
-7. PK data characteristics :
-    +  Patient population : From which patient population were the PK parameters used in the paper derived ?
-    +  Used for ? : Was the PK parameters used for setting up the system (+g dynamic experiments) or for simulations of expected bacterial densities ?
-    +  Comments : Any additional information
+1. Drug characteristics: 
+    +  Drug class: Self-explanatory
+    +  Drug: Self-explanatory
+2. Pathogen characteristics:
+    +  Pathogen(s): Full name of the pathogen(s) investigated
+    +  Number of strains: How many strains were used to produce the data the model
+3. Growth model characteristics:
+    +  Growth model: Can comprise: 1, 2 or 3 metabolic states, growing and resting bacteria, 2-state life-cycle model, or other form
+    +  Growth equation: Equation characterizing the growth rate
+    +  Delay in growth: Does the growth rate equation describe any delay?
+    +  Comments: Any additional information
+4. Effect model characteristics: 
+    +  Effect equation: Does the equation link drug concentrations to effect via a linear, linear with power, Emax or sigmoid Emax model?
+    +  Effect on death or growth: Is the drug effect implemented as a reduction of growth or an increase in death rate?
+    +  Delay in effect: Does the effect equation include any delay component?
+    +  Drug: Name of the drug causing the effect
+    +  Pathogen: Full name of the studied pathogen
+    +  Comments: Any additional information
+5. Regrowth model characteristics:
+    +  Regrowth model: Type of regrowth model included in the paper *e.g.* adaptive resistance, subpopulations, other
+    +  Comments: Any additional information
+6. Interaction model characteristics:
+    +  Interaction model: type of interaction model *e.g.* additivity, Loewe additivity, Bliss independence, Greco model, Other
+    +  Interaction effect: Parametrization of the interaction effect
+    +  Perpetrator: Which drug affect the effect of the other drug? (concept by Wicha *et al.*, 2017)
+    +  Victim: Which drug effect is affected by the other drug? (concept by Wicha *et al.*, 2017)
+    +  Comments: Any additional information
+7. PK data characteristics:
+    +  Patient population: Patient population underlying the PK parameters used in the publication?
+    +  Used for?: Were the PK parameters used as the basis for the kill-curve (dynamic) experiments or for simulations of expected bacterial densities using the final PKPD model?
+    +  Comments: Any additional information
 
 
 ```{r}
@@ -344,7 +342,7 @@ interaction_model_table <- select(all_data,
 pk_data_summary <- pk_data_table %>% 
   select(-pk_comments,-pk_usage) %>% 
   distinct() %>%
-  mutate(pk_population = case_when(pk_population == "no pk population" ~ NA_character_,
+  mutate(pk_population = case_when(pk_population == "-" ~ NA_character_,
                                    TRUE ~ pk_population)) %>%
   left_join(select(pk_data_table,pmid,pk_usage)) %>% 
   distinct() %>% 
@@ -574,13 +572,13 @@ interaction_model_for_dynamic_table <- interaction_model_table %>%
 l.interaction_model <-
   split(interaction_model_for_dynamic_table%>% select(-pmid) %>%
           mutate_all(str_to_sentence) %>% 
-          rename("Paradigm" = interaction_paradigm,
+          rename("Interaction model" = interaction_paradigm,
                  "Interaction effect" = interaction_effect,
                  "Perpetrator" = interaction_perpetrator,
                  "Victim" = interaction_victim,
                  "Comments" = interaction_comments), interaction_model_for_dynamic_table$pmid)
 l.pk_data <-
-  split(pk_data_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename("Patient population" = pk_population,"Used for ?" = pk_usage, "Comments" = pk_comments), pk_data_table$pmid)
+  split(pk_data_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename("Patient population" = pk_population,"Used for?" = pk_usage, "Comments" = pk_comments), pk_data_table$pmid)
 
 l.cars <-
   pmap(
@@ -599,10 +597,10 @@ l.cars <-
       Link = ..1$Link,
       `Drug` = ..1$`Drug(s)`,
       `Pathogen` = ..1$`Pathogen(s)`,
-      `Experiment type` = ..1$`Experiment type(s)`,
+      `Type of experiment` = ..1$`Experiment type(s)`,
       `Growth model` = ..1$`Growth model`,
       `Effect equation` = ..1$`Effect equation(s)`,
-      `Resistance model` = ..1$`Resistance model(s)`,
+      `Regrowth model` = ..1$`Resistance model(s)`,
       `Interaction model` = ..1$`Interaction model(s)`,
       `Patient PK` = ..1$`Human PK`,
       drugs_subtable = toJSON(..2,na="string"),
@@ -798,7 +796,7 @@ tableFour.appendChild(tableBodyFour);
 table.appendChild(tableFour);
 var tableFive = document.createElement('table');
                       var myCaptionFive = tableFive.createCaption ();
-                      myCaptionFive.innerHTML = 'Resistance model characteristics';
+                      myCaptionFive.innerHTML = 'Regrowth model characteristics';
 var tableBodyFive = document.createElement('tbody');
 var embeddedTableRowsFive = d[16] ;  // JSON automatically converted to array
 var subtableFive = [];
@@ -930,7 +928,7 @@ table.appendChild(tableSeven);
 caption = htmltools::tags$caption(
         style="caption-side: bottom; text-align: left; margin: 8px 0;",
         htmltools::tags$sup("1"),
-        "Experiment types : S = Static time-kill, D = Dynamic time-kill, StepDil = Stepwise dilution time-kill, HF = Hollow fibre time-kill, A = Animal time-kill, O = Other"
+        "Type of experiment : S = Static time-kill, D = Dynamic time-kill, StepDil = Stepwise dilution time-kill, HF = Hollow fibre time-kill, A = Animal time-kill, O = Other"
     )
 ) %>%
   formatStyle(
