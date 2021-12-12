@@ -11,6 +11,21 @@ output:
 ```{r chunk options, echo=F, message=F, warning=F}
 knitr::opts_chunk$set(echo = F, message = F, warning = F)
 ```
+```{r centering table content, results="asis"}
+cat("
+<style>
+td 
+{
+    text-align: center; 
+    vertical-align: middle;
+}
+</style>
+")
+
+
+
+
+```
 
 # About this database
 
@@ -79,6 +94,10 @@ library(here)
 library(flextable)
 library(DT)
 library(AMR)
+
+custom_capital_function <- function(x){
+  paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
+}
 
 single_drug_data <-
   read_xlsx(here("tables/single_drug.xlsx"))
@@ -409,7 +428,8 @@ experiment_type_summary <- experiment_type_table %>%
   unite(`Experiment type(s)`,starts_with("experiment_"),sep=", ", na.rm = T)
 
 growth_model_summary <- growth_model_table %>%
-  unite("growth_model",growth_model,growth_model_equation, growth_model_delay,growth_model_comments,sep=", ",na.rm=T) %>% 
+  select(pmid,growth_model) %>% 
+  distinct() %>% 
   mutate(`Growth model` = str_to_sentence(growth_model)) %>%
   select(-growth_model)
 
@@ -428,7 +448,7 @@ resistance_model_summary <- resistance_model_table %>%
   distinct() %>%
   group_by(pmid) %>%
   mutate(n_row = paste0("resistance_",row_number()),
-         resistance_model = str_to_sentence(resistance_model)) %>%
+         resistance_model = custom_capital_function(resistance_model)) %>%
   ungroup() %>%
   pivot_wider(names_from = n_row,
               values_from = resistance_model) %>%
@@ -440,7 +460,7 @@ interaction_model_summary <- interaction_model_table %>%
   group_by(pmid) %>%
   mutate(
     n_row = paste0("interaction_", row_number()),
-    interaction_effect = str_to_sentence(interaction_effect)
+    interaction_effect = custom_capital_function(interaction_effect)
   ) %>%
   ungroup() %>%
   pivot_wider(names_from = n_row,
@@ -460,7 +480,7 @@ interaction_model_summary <- interaction_model_table %>%
 summary_table <- article_info_table %>%
   mutate(
     Article = paste0(first_author, " et al., ", year, " (", pmid, ")"),
-    `Comments` = str_to_sentence(general_comments)
+    `Comments` = custom_capital_function(general_comments)
   ) %>%
   select(-c(first_author, year, general_comments)) %>%
   left_join(pk_data_summary) %>% 
@@ -497,7 +517,7 @@ summary_table_data_table <-
 
 
 l.summary_table_data_table_main <-
-  split(summary_table_data_table %>% mutate(Link = paste0('<a  target=_blank href=https://pubmed.ncbi.nlm.nih.gov/', pmid, '/>Link</a>' ) ) %>% relocate(Link, .after = Article), summary_table_data_table$pmid)
+  split(summary_table_data_table %>% distinct() %>% replace( is.na(.), "-") %>% mutate(Link = paste0('<a  target=_blank href=https://pubmed.ncbi.nlm.nih.gov/', pmid, '/>Link</a>' ) ) %>% relocate(Link, .after = Article), summary_table_data_table$pmid)
 
 studied_drugs_without_duplicate <-
   studied_drugs_table %>% select(-combination, -combination_name) %>% distinct()
@@ -507,23 +527,30 @@ l.studied_drugs <-
       studied_drugs_without_duplicate,
       drug_characteristics_table,
       by = c("drug_name" = "our_drug_name")
-    ) %>% select(-pmid) %>% mutate(Drug = str_to_sentence(drug_name)) %>% rename(`Drug class` = group) %>% select(-drug_name, `Drug`, `Drug class`),
+    ) %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate(Drug = custom_capital_function(drug_name)) %>% rename(`Drug class` = group) %>% select(-drug_name, `Drug`, `Drug class`) %>% replace( is.na(.), "-") %>% 
+      mutate(`Drug class` = case_when(`Drug class` == "Other antibacterials" ~ "Other antibiotics",
+                                      `Drug` == "Faropenem" ~ "Penems",
+                                      `Drug` == "Aditoprim" ~ "Dihydrofolate reductase inhibitor",
+                                      `Drug` == "Piperacillin/Tazobactam " ~ "Betalactam/Betalactamase inhibitor",
+                                      `Drug` == "Relebactam" ~ "Betalactamase inhibitor",
+                                      `Drug` == "Sulbactam" ~ "Betalactamase inhibitor",
+                                      TRUE ~ `Drug class`)),
     studied_drugs_without_duplicate$pmid
   )
 l.studied_pathogens <-
   split(
-    studied_pathogens_table %>% select(-pmid) %>% rename(`Pathogen(s)` = pathogen_name,
-                                                         `Number of strains` = n_strains),
+    studied_pathogens_table  %>% distinct() %>% select(-pmid) %>% rename(`Pathogen(s)` = pathogen_name,
+                                                         `Number of strains` = n_strains) %>%  mutate_all(as.character) %>% replace(is.na(.), "-"),
     studied_pathogens_table$pmid
   )
 l.growth_model <-
   split(
-    growth_model_table %>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename(
+    growth_model_table  %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% replace( is.na(.), "-") %>% mutate_all(custom_capital_function) %>% rename(
       `Growth model` = growth_model,
       `Growth equation` = growth_model_equation,
       `Delay in growth` = growth_model_delay,
       `Comments` = growth_model_comments
-    ),
+    ) ,
     growth_model_table$pmid
   )
 
@@ -542,20 +569,23 @@ effect_model_for_dynamic_table <- effect_model_table
 
 l.effect_model <-
   split(
-    effect_model_for_dynamic_table %>% select(-pmid) %>% mutate(
-      effect_death_growth = str_to_sentence(effect_death_growth),
-      effect_drug = str_to_sentence(effect_drug)
+    effect_model_for_dynamic_table %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate(
+      effect_death_growth = custom_capital_function(effect_death_growth),
+      effect_drug = custom_capital_function(effect_drug),
+      effect_delay = case_when(effect_delay=="no"~"No delay",
+                               effect_delay=="yes"~"Delay",
+                               TRUE ~ effect_delay)
     ) %>% 
       rename("Effect equation" = effect_equation,
              "Effect on death or growth" = effect_death_growth,
              "Delay in effect" = effect_delay,
              "Drug" = effect_drug,
              "Pathogen" = effect_pathogen,
-             "Comments" = effect_comments),
+             "Comments" = effect_comments) %>% replace( is.na(.), "-"),
     effect_model_for_dynamic_table$pmid
   )
 l.resistance_model <-
-  split(resistance_model_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename(`Resistance model` = resistance_model,
+  split(resistance_model_table %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate_all(custom_capital_function) %>% rename(`Resistance model` = resistance_model,
                                                            `Comments` = resistance_model_comments), resistance_model_table$pmid)
 
 missing_pmid_interaction_table <- tibble(pmid = filter(summary_table,!(pmid %in% interaction_model_table$pmid)) 
@@ -570,15 +600,15 @@ interaction_model_for_dynamic_table <- interaction_model_table %>%
    bind_rows(missing_pmid_interaction_table)
 
 l.interaction_model <-
-  split(interaction_model_for_dynamic_table%>% select(-pmid) %>%
-          mutate_all(str_to_sentence) %>% 
+  split(interaction_model_for_dynamic_table  %>% distinct()  %>% replace( is.na(.), "-") %>%  select(-pmid) %>%
+          mutate_all(custom_capital_function) %>% 
           rename("Interaction model" = interaction_paradigm,
                  "Interaction effect" = interaction_effect,
                  "Perpetrator" = interaction_perpetrator,
                  "Victim" = interaction_victim,
                  "Comments" = interaction_comments), interaction_model_for_dynamic_table$pmid)
 l.pk_data <-
-  split(pk_data_table%>% select(-pmid) %>% mutate_all(str_to_sentence) %>% rename("Patient population" = pk_population,"Used for?" = pk_usage, "Comments" = pk_comments), pk_data_table$pmid)
+  split(pk_data_table %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate_all(custom_capital_function) %>% rename("Patient population" = pk_population,"Used for?" = pk_usage, "Comments" = pk_comments) %>% distinct() %>% replace( is.na(.), "-"), pk_data_table$pmid)
 
 l.cars <-
   pmap(
@@ -636,7 +666,8 @@ datatable(
         orderable = FALSE,
         className = 'details-control',
         targets = 1
-      )
+      ),
+      list(className='dt-center', targets="_all")
     )
   ),
   
