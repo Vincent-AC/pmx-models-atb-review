@@ -1170,6 +1170,21 @@ ggsave("figures/figure_interaction_effect.png",
        height=15,
        units="cm")
 
+library(officer)
+
+sect_properties <- prop_section(
+  page_size = page_size(orient = "landscape",
+    width = 8.3, height = 11.7),
+  type = "continuous",
+  page_margins = page_mar()
+)
+word_table <- flextable(summary_table_data_table %>% select(-pmid)) %>%
+  colformat_num(big.mark="") %>%
+  theme_box()
+
+save_as_docx(word_table,
+  path = "tables/single_drug_word_table.docx", pr_section = sect_properties)
+
 ```
 
 
