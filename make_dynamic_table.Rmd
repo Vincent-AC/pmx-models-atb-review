@@ -43,7 +43,7 @@ regularly by the authors. If you want to be kept up to date please follow the
 attached github repository https://github.com/Vincent-AC/pmx-models-atb-review \ 
 
 
-Table last updated : 15th November 2021 \ 
+Search last updated : September 2021 \ 
 
 # How to read this table
 
@@ -281,7 +281,7 @@ growth_model_table <- select(all_data,
     into = c("growth_model", "growth_model_equation", "growth_model_delay", "growth_model_comments"),
     sep = ", "
   ) %>%
-  mutate(growth_model_equation = case_when(growth_model=="growing and resting bacteria"~"Self-limting growth",
+  mutate(growth_model_equation = case_when(growth_model=="growing and resting bacteria"~"Self-limiting growth",
                                            TRUE~growth_model_equation)) %>% 
   type_convert()
 
@@ -984,7 +984,7 @@ caption = htmltools::tags$caption(
 
 articles_year_graph_data <- left_join(article_info_table,studied_drugs_table) %>% 
   select(pmid,year,combination) %>%
-  mutate(year_group=cut(year,breaks=c(1963,seq(1991,2021,5)),include.lowest=T,
+  mutate(year_group=cut(year,breaks=c(1963,seq(1991,2021,5)),include.lowest=T,right=F,
                         labels=paste0(c(1963,seq(1991,2016,5)),"-",c(seq(1990,2015,5),2021)))) %>% 
   distinct()
 
@@ -1009,20 +1009,20 @@ ggplot(articles_year_graph_data,
   ) +
   geom_text(data = articles_year_graph_data_summary,
     aes(
-        x = year_group,y=30, label = n_papers_per_year_group,fill=NULL),
+        x = year_group,y=35, label = n_papers_per_year_group,fill=NULL),
     position = position_dodge(width = 0.9),
     vjust = -0.25
   ) +
   theme_bw()+
   scale_y_continuous(name = "Number of publications",
-                     breaks = seq(0,30,5),
-                     limits = c(0,30),
-                     labels = c(seq(0,25,5),"Total papers"))+
+                     breaks = seq(0,35,5),
+                     limits = c(0,35),
+                     labels = c(seq(0,30,5),"Total papers"))+
   scale_x_discrete(name = "Year of publication")+
   scale_fill_discrete(name = "",
                     labels = c("Single drugs","Combinations"))
 
-ggsave("figures/figure_1.eps",
+ggsave("figures/figure_1.tiff",
        width=20,
        height=15,
        units="cm")
@@ -1074,7 +1074,7 @@ ggplot(combination_drug_family_level_statistics_table,
                     labels = c("Single drugs","Combinations"))+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_drug_family.eps",
+ggsave("figures/figure_drug_family.tiff",
        width=20,
        height=15,
        units="cm")
@@ -1086,6 +1086,11 @@ experiment_level_statistics_table <-
   experiment_type_table %>%
   left_join(select(all_data, combination, pmid)) %>%
   group_by(combination) %>%
+    mutate(experiment_type = case_when(experiment_type=="Static kill-curves" ~ "Static kill curves",
+                                     experiment_type=="Hollow Fibre kill-curves" ~ "Hollow fibre kill curves",
+                                     experiment_type=="Hollow fibre kill-curves" ~ "Hollow fibre kill curves",
+                                     experiment_type=="Dynamic kill-curves" ~ "Dynamic kill curves",
+                                     TRUE ~ experiment_type)) %>% 
   count(experiment_type) %>% 
   arrange(-n) %>% 
   group_by(experiment_type) %>% 
@@ -1115,7 +1120,7 @@ ggplot(experiment_level_statistics_table,
                     labels = c("Single drugs","Combinations"))+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_experiment_type.eps",
+ggsave("figures/figure_experiment_type.tiff",
        width=20,
        height=15,
        units="cm")
@@ -1128,6 +1133,12 @@ interaction_paradigm_statistics_table <-
   interaction_model_table %>%
   count(interaction_paradigm ) %>% 
   arrange(-n) %>% 
+  mutate(interaction_paradigm = case_when(interaction_paradigm == "additivity" ~ "Additivity",
+                                          interaction_paradigm == "greco ursa model" ~ "Greco interaction model",
+                                          interaction_paradigm == "bliss" ~ "Bliss independence",
+                                          interaction_paradigm == "loewe additivity" ~ "Loewe additivity",
+                                          TRUE ~ interaction_paradigm
+                                          )) %>% 
   mutate(interaction_paradigm  = fct_reorder(interaction_paradigm ,n,.desc=T))
 
 ggplot(interaction_paradigm_statistics_table,
@@ -1144,7 +1155,7 @@ ggplot(interaction_paradigm_statistics_table,
   scale_x_discrete(name = "Interaction model")+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_interaction_model.eps",
+ggsave("figures/figure_interaction_model.tiff",
        width=20,
        height=15,
        units="cm")
@@ -1154,6 +1165,15 @@ interaction_effect_statistics_table <-
   interaction_model_table %>%
   count(interaction_effect ) %>% 
   arrange(-n) %>% 
+  mutate(interaction_effect = case_when(interaction_effect == "decrease in EC50" ~ "Decrease in EC50",
+                                          interaction_effect == "no interaction parameter" ~ "No interaction parameter",
+                                          interaction_effect == "greco interaction model" ~ "Greco interaction model",
+                                          interaction_effect == "decrease in drug degradation rate" ~ "Decrease in drug degradation rate",
+                                          interaction_effect == "increase in Emax" ~ "Increase in Emax",
+                                          interaction_effect == "power on individual effects" ~ "Power on individual effects",
+                                          interaction_effect == "decrease in adaptive resistance rate" ~ "Decrease in adaptive resistance rate",
+                                          TRUE ~ interaction_effect
+                                          )) %>% 
   mutate(interaction_effect  = fct_reorder(interaction_effect ,n,.desc=T))
 
 ggplot(interaction_effect_statistics_table,
@@ -1170,7 +1190,7 @@ ggplot(interaction_effect_statistics_table,
   scale_x_discrete(name = "Interaction effect")+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_interaction_effect.eps",
+ggsave("figures/figure_interaction_effect.tiff",
        width=20,
        height=15,
        units="cm")
