@@ -100,10 +100,10 @@ custom_capital_function <- function(x){
 }
 
 single_drug_data <-
-  read_xlsx(here("tables/single_drug.xlsx"))
+  readxl::read_xlsx(here("tables/single_drug.xlsx"))
 
 combination_drug_data <-
-  read_xlsx(here("tables/combination_drugs.xlsx"))
+  readxl::read_xlsx(here("tables/combination_drugs.xlsx"))
 
 all_data <- bind_rows(
   mutate(single_drug_data, combination = F),
@@ -281,6 +281,8 @@ growth_model_table <- select(all_data,
     into = c("growth_model", "growth_model_equation", "growth_model_delay", "growth_model_comments"),
     sep = ", "
   ) %>%
+  mutate(growth_model_equation = case_when(growth_model=="growing and resting bacteria"~"Self-limting growth",
+                                           TRUE~growth_model_equation)) %>% 
   type_convert()
 
 effect_model_table <- select(all_data,
@@ -336,6 +338,9 @@ resistance_model_table <- select(all_data,
   separate(resistance_model,
            into = c("resistance_model","resistance_model_comments"),
            sep = ", ") %>%
+  mutate(resistance_model = case_when(resistance_model=="No resistance model"~"No regrowth model",
+                                      pmid == 17060524 ~ "No regrowth model",
+                                      TRUE ~ resistance_model)) %>% 
   type_convert()
 
 interaction_model_table <- select(all_data,
@@ -608,7 +613,7 @@ l.interaction_model <-
                  "Victim" = interaction_victim,
                  "Comments" = interaction_comments), interaction_model_for_dynamic_table$pmid)
 l.pk_data <-
-  split(pk_data_table %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate_all(custom_capital_function) %>% rename("Patient population" = pk_population,"Used for?" = pk_usage, "Comments" = pk_comments) %>% distinct() %>% replace( is.na(.), "-"), pk_data_table$pmid)
+  split(pk_data_table %>% distinct()  %>% replace( is.na(.), "-") %>% select(-pmid) %>% mutate_all(custom_capital_function) %>% rename("Patient population" = pk_population,"Used for?" = pk_usage, "Comments" = pk_comments) %>% replace( is.na(.), "-"), pk_data_table$pmid)
 
 l.cars <-
   pmap(
@@ -1009,7 +1014,7 @@ ggplot(articles_year_graph_data,
     vjust = -0.25
   ) +
   theme_bw()+
-  scale_y_continuous(name = "Number of papers",
+  scale_y_continuous(name = "Number of publications",
                      breaks = seq(0,30,5),
                      limits = c(0,30),
                      labels = c(seq(0,25,5),"Total papers"))+
@@ -1017,7 +1022,7 @@ ggplot(articles_year_graph_data,
   scale_fill_discrete(name = "",
                     labels = c("Single drugs","Combinations"))
 
-ggsave("figures/figure_1.png",
+ggsave("figures/figure_1.eps",
        width=20,
        height=15,
        units="cm")
@@ -1060,7 +1065,7 @@ ggplot(combination_drug_family_level_statistics_table,
     vjust = -0.25
   ) +
   theme_bw()+
-  scale_y_continuous(name = "Number of papers",
+  scale_y_continuous(name = "Number of publications",
                      breaks = seq(0,30,5),
                      limits = c(0,30),
                      labels = c(seq(0,25,5),"Total papers"))+
@@ -1069,7 +1074,7 @@ ggplot(combination_drug_family_level_statistics_table,
                     labels = c("Single drugs","Combinations"))+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_drug_family.png",
+ggsave("figures/figure_drug_family.eps",
        width=20,
        height=15,
        units="cm")
@@ -1101,7 +1106,7 @@ ggplot(experiment_level_statistics_table,
     vjust = -0.25
   ) +
   theme_bw()+
-  scale_y_continuous(name = "Number of papers",
+  scale_y_continuous(name = "Number of publications",
                      breaks = c(seq(0,60,12),66),
                      limits = c(0,66),
                      labels = c(seq(0,60,12),"Total papers"))+
@@ -1110,7 +1115,7 @@ ggplot(experiment_level_statistics_table,
                     labels = c("Single drugs","Combinations"))+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_experiment_type.png",
+ggsave("figures/figure_experiment_type.eps",
        width=20,
        height=15,
        units="cm")
@@ -1133,13 +1138,13 @@ ggplot(interaction_paradigm_statistics_table,
     vjust = -0.25
   ) +
   theme_bw()+
-  scale_y_continuous(name = "Number of papers",
+  scale_y_continuous(name = "Number of publications",
                      breaks = seq(0,40,5),
                      limits = c(0,40))+
-  scale_x_discrete(name = "Interaction paradigm")+
+  scale_x_discrete(name = "Interaction model")+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_interaction_paradigm.png",
+ggsave("figures/figure_interaction_model.eps",
        width=20,
        height=15,
        units="cm")
@@ -1159,13 +1164,13 @@ ggplot(interaction_effect_statistics_table,
     vjust = -0.25
   ) +
   theme_bw()+
-  scale_y_continuous(name = "Number of papers",
+  scale_y_continuous(name = "Number of publications",
                      breaks = seq(0,25,5),
                      limits = c(0,25))+
   scale_x_discrete(name = "Interaction effect")+
   theme(axis.text.x = element_text(angle=45,hjust=1))
 
-ggsave("figures/figure_interaction_effect.png",
+ggsave("figures/figure_interaction_effect.eps",
        width=20,
        height=15,
        units="cm")
