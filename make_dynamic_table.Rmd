@@ -1,5 +1,5 @@
 ---
-title: "Pharmacokinetic-pharmacodynamic models for time-courses of antibiotic effects – An exhaustive review"
+title: "Pharmacokinetic-pharmacodynamic models for time courses of antibiotic effects"
 output: 
   html_document:
     knit: (function(inputFile, encoding) { 
@@ -34,13 +34,12 @@ from the Pharmacometrics research group at Uppsala University. \
 
 If you would like to see detailed information about the drugs, pathogens and/or models included in one article, you can click on the green “plus” sign on the left of each row. In the following, the contents of each detailed table are outlined: \ 
 
-Minichmayr IK, Aranzana-Climent V, Friberg LE, Pharmacokinetic-pharmacodynamic 
-models for time-courses of antibiotic effects – An exhaustive review, In 
-manuscript, 2021. \ 
+Minichmayr IK, Aranzana-Climent V, Friberg LE, PPharmacokinetic-pharmacodynamic models for time courses of antibiotic effects, In 
+manuscript, 2022. \ 
 
 The database presented in this page is dynamic in nature, it will be updated 
 regularly by the authors. If you want to be kept up to date please follow the 
-attached github repository https://github.com/Vincent-AC/pmx-models-atb-review \ 
+attached github repository https://github.com/atb-models-review/atb-models-review.github.io \ 
 
 
 Search last updated : September 2021 \ 
@@ -82,6 +81,8 @@ information about what is in each detailed table :\
     +  Victim: Which drug effect is affected by the other drug? (concept by Wicha *et al.*, 2017)
     +  Comments: Any additional information
 7. PK data characteristics:
+    +  This column states whether human/patient pahramcokientics were mimicked in the experimental setup or used for simulations with a final PKPD model (replacing the PK component by
+    a patient based population PK model)
     +  Patient population: Patient population underlying the PK parameters used in the publication?
     +  Used for?: Were the PK parameters used as the basis for the kill-curve (dynamic) experiments or for simulations of expected bacterial densities using the final PKPD model?
     +  Comments: Any additional information
@@ -637,7 +638,7 @@ l.cars <-
       `Effect equation` = ..1$`Effect equation(s)`,
       `Regrowth model` = ..1$`Resistance model(s)`,
       `Interaction model` = ..1$`Interaction model(s)`,
-      `Patient PK` = ..1$`Human PK`,
+      `Human PK` = ..1$`Human PK`,
       drugs_subtable = toJSON(..2,na="string"),
       pathogens_subtable = toJSON(..3,na="string"),
       growth_subtable = toJSON(..4,na="string"),
@@ -960,11 +961,25 @@ table.appendChild(tableSeven);
 
                     });"
   ),
-  selection = 'none',
+selection = 'none',
 caption = htmltools::tags$caption(
-        style="caption-side: bottom; text-align: left; margin: 8px 0;",
-        htmltools::tags$sup("1"),
-        "Type of experiment : S = Static time-kill, D = Dynamic time-kill, StepDil = Stepwise dilution time-kill, HF = Hollow fibre time-kill, A = Animal time-kill, O = Other"
+  style = "caption-side: bottom; text-align: left; margin: 8px 0;",
+  "Abbreviations:",
+  htmltools::tags$br(),
+  htmltools::tags$sup("1"),
+  "Pathogens: S. aureus: Staphylococcus aureus; S. epidermidis: Staphylococcus epidermidis; E. coli: Escherichia coli; A. baumannii: Acinetobacter baumannii; S. pneumoniae: Streptococcus pneumoniae; P. aeruginosa: Pseudomonas aeruginosa; K. pneumoniae: Klebsiella pneumoniae; T. pyogenes: Trueperella pyogenes; E. faecium: Enterococcus faecium; P. multocida: Pasteurella multocida; M. haemolytica: Mannheimia haemolytica; N. gonorrhoeae: Neisseria gonorrhoeae; S. capitis: Staphylococcus capitis; H. influenzae: Haemophilus influenzae; E. faecalis: Enterococcus faecalis; S. pyogenes: Streptococcus pyogenes; M. catarrhalis: Moraxella catarrhalis; V. cholerae: Vibrio cholerae; S. agalactiae: Streptococcus agalactiae; E. cloacae: Enterobacter cloacae; C. freundii: Citrobacter freundii;",
+  htmltools::tags$br(),
+  htmltools::tags$sup("2"),
+  "Type of experiment: S: static; D: dynamic; A: animal; HF: hollow-fibre; StepDil: stepwise dilution;",
+  htmltools::tags$br(),
+  htmltools::tags$sup("3"),
+  "Effect equation(s): (s)Emax: (sigmoidal) Emax model;",
+  htmltools::tags$br(),
+  htmltools::tags$sup("4"),
+  "Interaction model(s): EC50: concentration leading to half-maximal effect;",
+  htmltools::tags$br(),
+  htmltools::tags$sup("5"),
+  "Human PK (human pharmacokinetics): MRSA: methicillin-resistant Staphylococcus aureus; HAP: hospital-acquired pneumonia; VAP: ventilator-associated pneumonia; ARC: augmented renal clearance;"
     )
 ) %>%
   formatStyle(
