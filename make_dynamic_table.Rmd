@@ -81,8 +81,6 @@ information about what is in each detailed table :\
     +  Victim: Which drug effect is affected by the other drug? (concept by Wicha *et al.*, 2017)
     +  Comments: Any additional information
 7. PK data characteristics:
-    +  This column states whether human/patient pahramcokientics were mimicked in the experimental setup or used for simulations with a final PKPD model (replacing the PK component by
-    a patient based population PK model)
     +  Patient population: Patient population underlying the PK parameters used in the publication?
     +  Used for?: Were the PK parameters used as the basis for the kill-curve (dynamic) experiments or for simulations of expected bacterial densities using the final PKPD model?
     +  Comments: Any additional information
@@ -979,7 +977,7 @@ caption = htmltools::tags$caption(
   "Interaction model(s): EC50: concentration leading to half-maximal effect;",
   htmltools::tags$br(),
   htmltools::tags$sup("5"),
-  "Human PK (human pharmacokinetics): MRSA: methicillin-resistant Staphylococcus aureus; HAP: hospital-acquired pneumonia; VAP: ventilator-associated pneumonia; ARC: augmented renal clearance;"
+  "Human PK (human pharmacokinetics): This column states whether human/patient pharamcokinetics were mimicked in the experimental setup or used for simulations with a final PKPD model (replacing the PK component by a patient-based population PK model). MRSA: methicillin-resistant Staphylococcus aureus; HAP: hospital-acquired pneumonia; VAP: ventilator-associated pneumonia; ARC: augmented renal clearance;"
     )
 ) %>%
   formatStyle(
